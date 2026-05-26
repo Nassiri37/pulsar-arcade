@@ -4,7 +4,7 @@
 
 ## Overview
 
-Pulsar-Arcade is a PvP arcade resource built for the Avast Arcade job, featuring instanced routing buckets, custom loadouts , custom maps
+Pulsar-Arcade is a PvP arcade resource built for the Avast Arcade job, featuring instanced routing buckets, custom loadouts , and custom maps
 
 ## Dependencies
 
