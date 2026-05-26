@@ -30,6 +30,45 @@ local function countTable(tbl)
 	return n
 end
 
+local function clearPlayerMatchState(source)
+	_playerMatch[source] = nil
+	Player(source).state:set("arcadeMatchId", nil, true)
+	Player(source).state:set("arcadeTeam", nil, true)
+	Player(source).state:set("arcadeEntered", false, true)
+end
+
+local function clearStaleArcadeStates(activeMatch)
+	if activeMatch and activeMatch.id then
+		local match = _matches[activeMatch.id]
+		if not match then
+			return
+		end
+
+		for _, playerId in ipairs(GetPlayers()) do
+			local src = tonumber(playerId)
+			local stateId = Player(src).state.arcadeMatchId
+			local trackedId = _playerMatch[src]
+			local inMatch = match.queue[src] or match.players[src]
+
+			if stateId and stateId ~= activeMatch.id then
+				clearPlayerMatchState(src)
+			elseif trackedId and trackedId ~= activeMatch.id then
+				clearPlayerMatchState(src)
+			elseif (stateId or trackedId) and not inMatch then
+				clearPlayerMatchState(src)
+			end
+		end
+		return
+	end
+
+	for _, playerId in ipairs(GetPlayers()) do
+		local src = tonumber(playerId)
+		if Player(src).state.arcadeMatchId or _playerMatch[src] then
+			clearPlayerMatchState(src)
+		end
+	end
+end
+
 local function syncGlobalMatch(match)
 	if not match then
 		GlobalState["Arcade:Match"] = false
@@ -104,45 +143,6 @@ local function assignTeam(match)
 		return "red"
 	end
 	return "blue"
-end
-
-local function clearPlayerMatchState(source)
-	_playerMatch[source] = nil
-	Player(source).state:set("arcadeMatchId", nil, true)
-	Player(source).state:set("arcadeTeam", nil, true)
-	Player(source).state:set("arcadeEntered", false, true)
-end
-
-local function clearStaleArcadeStates(activeMatch)
-	if activeMatch and activeMatch.id then
-		local match = _matches[activeMatch.id]
-		if not match then
-			return
-		end
-
-		for _, playerId in ipairs(GetPlayers()) do
-			local src = tonumber(playerId)
-			local stateId = Player(src).state.arcadeMatchId
-			local trackedId = _playerMatch[src]
-			local inMatch = match.queue[src] or match.players[src]
-
-			if stateId and stateId ~= activeMatch.id then
-				clearPlayerMatchState(src)
-			elseif trackedId and trackedId ~= activeMatch.id then
-				clearPlayerMatchState(src)
-			elseif (stateId or trackedId) and not inMatch then
-				clearPlayerMatchState(src)
-			end
-		end
-		return
-	end
-
-	for _, playerId in ipairs(GetPlayers()) do
-		local src = tonumber(playerId)
-		if Player(src).state.arcadeMatchId or _playerMatch[src] then
-			clearPlayerMatchState(src)
-		end
-	end
 end
 
 local function spawnPlayerInMatch(source, match, pdata, spawnIndex)
