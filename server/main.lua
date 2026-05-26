@@ -7,6 +7,45 @@ local function isArcadeStaffOnDuty(source)
 	return Player(source).state.onDuty == ARCADE_JOB
 end
 
+local function registerCharacterInventoryHooks()
+	exports["pulsar-core"]:MiddlewareAdd("Characters:Spawning", function(source)
+		local char = exports["pulsar-characters"]:FetchCharacterSource(source)
+		if not char then
+			return true
+		end
+
+		local sid = tostring(char:GetData("SID"))
+		local strippedSid = Player(source).state.arcadeInvStrippedSid
+		if strippedSid and tostring(strippedSid) ~= sid then
+			Player(source).state:set("arcadeInvStrippedSid", nil, true)
+		end
+
+		SetTimeout(2500, function()
+			if GetPlayerPing(source) <= 0 then
+				return
+			end
+
+			local currentChar = exports["pulsar-characters"]:FetchCharacterSource(source)
+			if not currentChar then
+				return
+			end
+
+			if Player(source).state.arcadeInvStrippedSid then
+				return
+			end
+
+			if ArcadeMatches.GetPlayerMatch(source) then
+				return
+			end
+
+			-- Recover inventory if a confiscation stash exists (no-op if already restored).
+			exports["pulsar-arcade"]:RestoreInventory(source)
+		end)
+
+		return true
+	end, 20)
+end
+
 local function registerCallbacks()
 	exports["pulsar-core"]:RegisterServerCallback("Arcade:Open", function(source, _data, cb)
 		if not isArcadeStaffOnDuty(source) then
@@ -63,8 +102,13 @@ local function registerCallbacks()
 	end)
 
 	exports["pulsar-core"]:RegisterServerCallback("Arcade:LeaveMatch", function(source, _data, cb)
+		local hadState = ArcadeMatches.GetPlayerMatch(source) or Player(source).state.arcadeMatchId
 		ArcadeMatches.LeavePlayer(source, false)
-		cb(true)
+		if hadState then
+			cb(true)
+		else
+			cb(false, "You are not in a match.")
+		end
 	end)
 
 	exports["pulsar-core"]:RegisterServerCallback("Arcade:StartMatch", function(source, _data, cb)
@@ -124,6 +168,11 @@ AddEventHandler("playerDropped", function()
 	if ArcadeMatches.GetPlayerMatch(src) then
 		ArcadeMatches.LeavePlayer(src, true)
 	end
+
+	-- Best-effort restore if they disconnect while stripped (before character unloads).
+	if Player(src).state.arcadeInvStrippedSid then
+		exports["pulsar-arcade"]:RestoreInventory(src)
+	end
 end)
 
 AddEventHandler("onResourceStart", function(resource)
@@ -133,6 +182,7 @@ AddEventHandler("onResourceStart", function(resource)
 
 	Wait(500)
 	registerCallbacks()
+	registerCharacterInventoryHooks()
 
 	if GlobalState["Arcade:Open"] == nil then
 		GlobalState["Arcade:Open"] = false

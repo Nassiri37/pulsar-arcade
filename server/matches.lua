@@ -34,6 +34,7 @@ local function syncGlobalMatch(match)
 	if not match then
 		GlobalState["Arcade:Match"] = false
 		TriggerClientEvent("Arcade:Client:SyncMatch", -1, false)
+		clearStaleArcadeStates(nil)
 		return
 	end
 
@@ -58,6 +59,7 @@ local function syncGlobalMatch(match)
 	}
 
 	TriggerClientEvent("Arcade:Client:SyncMatch", -1, GlobalState["Arcade:Match"])
+	clearStaleArcadeStates(GlobalState["Arcade:Match"])
 end
 
 local function resolveMapId(mapId)
@@ -109,6 +111,38 @@ local function clearPlayerMatchState(source)
 	Player(source).state:set("arcadeMatchId", nil, true)
 	Player(source).state:set("arcadeTeam", nil, true)
 	Player(source).state:set("arcadeEntered", false, true)
+end
+
+local function clearStaleArcadeStates(activeMatch)
+	if activeMatch and activeMatch.id then
+		local match = _matches[activeMatch.id]
+		if not match then
+			return
+		end
+
+		for _, playerId in ipairs(GetPlayers()) do
+			local src = tonumber(playerId)
+			local stateId = Player(src).state.arcadeMatchId
+			local trackedId = _playerMatch[src]
+			local inMatch = match.queue[src] or match.players[src]
+
+			if stateId and stateId ~= activeMatch.id then
+				clearPlayerMatchState(src)
+			elseif trackedId and trackedId ~= activeMatch.id then
+				clearPlayerMatchState(src)
+			elseif (stateId or trackedId) and not inMatch then
+				clearPlayerMatchState(src)
+			end
+		end
+		return
+	end
+
+	for _, playerId in ipairs(GetPlayers()) do
+		local src = tonumber(playerId)
+		if Player(src).state.arcadeMatchId or _playerMatch[src] then
+			clearPlayerMatchState(src)
+		end
+	end
 end
 
 local function spawnPlayerInMatch(source, match, pdata, spawnIndex)
@@ -194,7 +228,12 @@ function ArcadeMatches.JoinLobby(source)
 	end
 
 	if _playerMatch[source] then
-		return false, "You have already joined this match."
+		if match.queue[source] or match.players[source] then
+			return false, "You have already joined this match."
+		end
+		clearPlayerMatchState(source)
+	elseif Player(source).state.arcadeMatchId then
+		clearPlayerMatchState(source)
 	end
 
 	if countTable(match.queue) >= match.maxPlayers then
@@ -228,6 +267,12 @@ end
 function ArcadeMatches.LeavePlayer(source, silent)
 	local matchId = _playerMatch[source]
 	if not matchId then
+		if Player(source).state.arcadeMatchId then
+			clearPlayerMatchState(source)
+			if not silent then
+				notify(source, "info", "You left the match.")
+			end
+		end
 		return
 	end
 

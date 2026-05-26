@@ -25,9 +25,18 @@ local function isArcadeOpen()
 	return GlobalState["Arcade:Open"] == true
 end
 
-local function hasJoinedMatchQueue()
+local function isJoinedCurrentMatch()
 	local matchId = LocalPlayer.state.arcadeMatchId
-	return matchId ~= nil and matchId ~= false and matchId ~= ""
+	if not matchId or matchId == "" then
+		return false
+	end
+
+	local match = getActiveMatch()
+	if not match or not match.id then
+		return false
+	end
+
+	return tostring(matchId) == tostring(match.id)
 end
 
 local function canJoinMatch()
@@ -40,15 +49,15 @@ local function canJoinMatch()
 		return false
 	end
 
-	return not hasJoinedMatchQueue()
+	return not isJoinedCurrentMatch()
 end
 
-local function canLeaveMatchQueue()
-	local match = getActiveMatch()
-	return hasJoinedMatchQueue()
-		and match
-		and match.status == "lobby"
-		and not exports["pulsar-arcade"]:InMatch()
+local function canLeaveLobby()
+	if not isJoinedCurrentMatch() then
+		return false
+	end
+
+	return not exports["pulsar-arcade"]:InMatch()
 end
 
 RegisterNetEvent("Arcade:Client:SyncMatch", function(match)
@@ -128,16 +137,16 @@ local function setupJoinZone()
 				label = "Leave Match",
 				distance = 3.0,
 				onSelect = function()
-					TriggerEvent("Arcade:Client:LeaveMatch")
+					TriggerEvent("Arcade:Client:RequestLeaveMatch")
 				end,
-				canInteract = canLeaveMatchQueue,
+				canInteract = canLeaveLobby,
 			},
 			{
 				icon = "fas fa-right-from-bracket",
 				label = "Leave Match",
 				distance = 3.0,
 				onSelect = function()
-					TriggerEvent("Arcade:Client:LeaveMatch")
+					TriggerEvent("Arcade:Client:RequestLeaveMatch")
 				end,
 				canInteract = function()
 					return exports["pulsar-arcade"]:InMatch()
@@ -213,8 +222,8 @@ local function setupArcadePed()
 			{
 				icon = "door-open",
 				text = "Leave Match",
-				event = "Arcade:Client:LeaveMatch",
-				isEnabled = canLeaveMatchQueue,
+				event = "Arcade:Client:RequestLeaveMatch",
+				isEnabled = canLeaveLobby,
 			},
 			{
 				icon = "play",
@@ -347,10 +356,12 @@ AddEventHandler("Arcade:Client:JoinMatch", function()
 	end)
 end)
 
-AddEventHandler("Arcade:Client:LeaveMatch", function()
-	exports["pulsar-core"]:ServerCallback("Arcade:LeaveMatch", {}, function(success)
+AddEventHandler("Arcade:Client:RequestLeaveMatch", function()
+	exports["pulsar-core"]:ServerCallback("Arcade:LeaveMatch", {}, function(success, err)
 		if success then
 			notify("info", "Left the match.")
+		else
+			notify("error", type(err) == "string" and err or "Unable to leave match.")
 		end
 	end)
 end)

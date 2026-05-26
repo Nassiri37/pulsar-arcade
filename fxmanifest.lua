@@ -19,3 +19,9 @@ server_scripts({
 	"server/matches.lua",
 	"server/main.lua",
 })
+
+dependencies({
+	"ox_inventory",
+	"pulsar-core",
+	"pulsar-characters",
+})
