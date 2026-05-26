@@ -1,5 +1,7 @@
 # PULSAR-ARCADE
 
+This was taken from the original sandbox framework fork converted to pulsar framework and fully configured to work as before in the mythic/sandbox forks it was not complete
+
 **A competitive PvP arcade resource built for the Avast Arcade job.**
 
 ## Overview
